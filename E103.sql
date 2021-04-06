@@ -23,3 +23,5 @@ DATE_FORMAT(
 FROM ENTREE
 
 WHERE DATE_FORMAT(MAKEDATE(YEAR(NOW()),jour_in),'%d/%m')='20/01'
+		  
+ORDER BY entrée DESC;
