@@ -9,7 +9,6 @@
 CREATE VIEW E302 AS
     SELECT 
         abo_num,
-        abo_mel,
         CONCAT(abo_nom, ' ', abo_prn) AS 'identité',
         abo_tel AS 'téléphone',
         abo_mel AS 'mel'
