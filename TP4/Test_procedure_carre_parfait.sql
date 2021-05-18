@@ -1,0 +1,1 @@
+CALL sp_carre_parfait(9,@parfait,@racine)
