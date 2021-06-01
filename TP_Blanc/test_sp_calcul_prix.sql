@@ -1,0 +1,1 @@
+CALL sp_calcul_prix(12,0,15,100,@prix)
