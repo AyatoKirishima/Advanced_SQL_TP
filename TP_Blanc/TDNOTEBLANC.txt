@@ -1,0 +1,139 @@
+---------------sp_calcul_prix-----------------
+CREATE DEFINER=`elloumi2u_appli`@`%` PROCEDURE `sp_calcul_prix`(in jdeb int,in hdeb int,in jfin int,in hfin int, out prix decimal(4,2))
+BEGIN
+	declare duree_sec int default 0;
+    declare duree_min int default 0;
+    declare flagPlusieurs boolean default false;
+    if(jfin=0 or hfin=0) then
+		set prix:=0;
+	else 
+		set duree_sec:=
+        TIME_to_sec(
+        timediff( 
+		 addtime(makedate(year(now()),jfin),sec_to_time(hfin*60) ) 
+		,addtime(makedate(year(now()),jdeb ),sec_to_time(hdeb*60 ) )
+		));
+		set duree_min:=duree_sec div 60;
+        if(duree_sec mod 60>0)then
+			set duree_min:=duree_min+1;
+		end if;
+      
+        select min(trfh_tarif) into prix from TARIF_HORAIRE where duree_min<=trfh_duree;
+    end if;
+END
+
+---------------sp_calcul_entree --------------
+CREATE DEFINER=`ghoniem1u_appli`@`%` PROCEDURE `sp_calcul_entree`(in enitid int, out prix decimal(4,2))
+BEGIN
+declare jin,hin int;
+declare jout,hout int default 0;
+SELECT 
+    jour_in
+INTO jin FROM
+    ENTREE
+WHERE
+    entid = ENTREE.ent_id;
+SELECT 
+    heure_in
+INTO hin FROM
+    ENTREE
+WHERE
+    entid = ENTREE.ent_id;
+SELECT 
+    jour_out
+INTO jout FROM
+    ENTREE
+WHERE
+    entid = ENTREE.ent_id;
+SELECT 
+    heure_out
+INTO hout FROM
+    ENTREE
+WHERE
+    entid = ENTREE.ent_id;
+call sp_calcul_prix(jin,hin,jout,hout,@prix);
+SELECT prix AS 'prix calculé de stationnement';
+
+
+END
+--------------sp_recette_jour_niveau-----------
+CREATE DEFINER=`ghoniem1u_appli`@`%` PROCEDURE `sp_recette_jour_niveau`(in nojour int, in nivid int, out recette decimal(4,2))
+BEGIN
+declare fincurs1 boolean default 0;
+
+declare entid int default 0;
+
+declare curs1 cursor for
+	select ent_id
+	from ENTREE
+	where nojour=ENTREE.jour_in
+	and nivid=ENTREE.niv_id;
+    
+declare continue handler for not found set fincurs1:=1;
+
+set recette:=0;
+open curs1;
+	fetch curs1 into entid;
+	while(not fincurs1) do
+		call sp_calcul_entree(entid, @prix);
+		set recette:=recette+@prix;
+        fetch curs1 into entid;
+	end while;
+close curs1;
+END
+------------sp_recette_jour-----------------
+CREATE DEFINER=`elloumi2u_appli`@`%` PROCEDURE `sp_recette_jour`(in nojour int , out recette decimal(7,2) )
+BEGIN
+
+    
+    declare niv int ;
+    declare somme int default 0;
+	declare fincurs1 boolean default 0;
+    declare curs1  cursor for select niv_id  from NIVEAU;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET fincurs1 := 1; 
+    
+    open curs1;
+    
+    fetch curs1 into niv;
+    while(NOT fincurs1) do
+		call sp_recette_jour_niveau(nojour,niv,@res);
+		set somme:=somme+@res;
+        fetch curs1 into niv;
+	end while;
+    
+    close curs1;
+END
+
+
+
+
+------------sp_prix_moyen_jour--------------
+CREATE DEFINER=`ghoniem1u_appli`@`%` PROCEDURE `sp_prix_moyen_jour`(in nojour int, out prixmoyen decimal(4,2))
+BEGIN
+
+declare nbEnt int default 0;
+
+select count(*) into nbEnt
+from ENTREE
+where nojour=ENTREE.jour_in;
+call sp_recette_jour(nojour, @recette);
+
+set prixmoyen:= @recette/nbEnt;
+
+END
+
+------------sp_duree_moyenne_jour--------------
+CREATE PROCEDURE `sp_duree_moyenne_jour` (in nojour int,out duree time)
+BEGIN
+declare duree_min int;
+    call sp_prix_moyen_jour(nojour,@moy_jour);
+	if(@moy_jour>=9) then
+		set duree:=sec_to_time(1440*60);
+	else 
+		select min(trfh_duree) into duree_min where trfh_tarif>= @moy_jour;
+	end if;
+END
+
+
+
+
